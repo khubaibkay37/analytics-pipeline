@@ -40,7 +40,8 @@ from images_capture import open_images_capture
 from helpers import resolution, log_latency_per_stage
 
 log.basicConfig(format='[ %(levelname)s ] %(message)s', level=log.DEBUG, stream=sys.stdout)
-
+THRESHOLD = 0.8
+ppl_in_frame = {"current":0,"max":0}
 
 def build_argparser():
     parser = ArgumentParser(add_help=False)
@@ -167,19 +168,24 @@ class ColorPalette:
 
 def draw_detections(frame, detections, palette, labels, output_transform):
     frame = output_transform.resize(frame)
+    # print(frame.shape)
+    count = 0
     for detection in detections:
-        class_id = int(detection.id)
-        color = palette[class_id]
-        det_label = labels[class_id] if labels and len(labels) >= class_id else '#{}'.format(class_id)
-        xmin, ymin, xmax, ymax = detection.get_coords()
-        xmin, ymin, xmax, ymax = output_transform.scale([xmin, ymin, xmax, ymax])
-        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
-        cv2.putText(frame, '{} {:.1%}'.format(det_label, detection.score),
-                    (xmin, ymin - 7), cv2.FONT_HERSHEY_COMPLEX, 0.6, color, 1)
-        if isinstance(detection, DetectionWithLandmarks):
-            for landmark in detection.landmarks:
-                landmark = output_transform.scale(landmark)
-                cv2.circle(frame, (int(landmark[0]), int(landmark[1])), 2, (0, 255, 255), 2)
+        if detection.score > 0.85 and int(detection.id) == 0:
+            class_id = int(detection.id)
+            color = palette[class_id]
+            det_label = labels[class_id] if labels and len(labels) >= class_id else '#{}'.format(class_id)
+            xmin, ymin, xmax, ymax = detection.get_coords()
+            xmin, ymin, xmax, ymax = output_transform.scale([xmin, ymin, xmax, ymax])
+            count +=1
+            cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
+            # cv2.putText(frame, '{} {:.1%}'.format(det_label, detection.score),
+            #             (xmin, ymin - 7), cv2.FONT_HERSHEY_COMPLEX, 0.6, color, 1)
+            if isinstance(detection, DetectionWithLandmarks):
+                for landmark in detection.landmarks:
+                    landmark = output_transform.scale(landmark)
+                    cv2.circle(frame, (int(landmark[0]), int(landmark[1])), 2, (0, 255, 255), 2)
+    cv2.putText(frame,f'Number of people: {count}',(frame.shape[1]//2,30),cv2.FONT_HERSHEY_DUPLEX,1.3,(255,255,0),1)
     return frame
 
 
