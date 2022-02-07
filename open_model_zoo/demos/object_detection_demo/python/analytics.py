@@ -16,6 +16,7 @@
 """
 
 import colorsys
+from concurrent.futures import thread
 import logging as log
 import random
 import sys
@@ -24,9 +25,11 @@ from pathlib import Path
 from time import perf_counter
 from flask import Flask, render_template, Response
 from influxdb import InfluxDBClient
+import threading
 
 
 import cv2
+from itsdangerous import json
 import numpy as np
 
 sys.path.append(str(Path(__file__).resolve().parents[2] / 'common/python'))
@@ -48,6 +51,14 @@ db_client = None
 PORT = 8086
 IPADDRESS = "localhost"
 DATABASE_NAME = "attempt"
+dbLock = threading.Lock()
+
+
+def updateDB(data):
+    global db_client
+    global dbLock
+    with dbLock:
+        db_client.write_points(data)
 
 def build_argparser():
     parser = ArgumentParser(add_help=False)
@@ -198,7 +209,10 @@ def draw_detections(frame, detections, palette, labels, output_transform):
                     "count":count
                 }
             }]
+    # updateDB(json_body)
+    x = threading.Thread(target=updateDB, args=(json_body,))
     # db_client.write_points(json_body)
+    x.start()
     return frame
 
 
