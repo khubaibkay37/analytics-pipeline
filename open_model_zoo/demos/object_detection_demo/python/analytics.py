@@ -23,6 +23,8 @@ from argparse import ArgumentParser, SUPPRESS
 from pathlib import Path
 from time import perf_counter
 from flask import Flask, render_template, Response
+from influxdb import InfluxDBClient
+
 
 import cv2
 import numpy as np
@@ -42,6 +44,10 @@ from helpers import resolution, log_latency_per_stage
 log.basicConfig(format='[ %(levelname)s ] %(message)s', level=log.DEBUG, stream=sys.stdout)
 THRESHOLD = 0.8
 ppl_in_frame = {"current":0,"max":0}
+db_client = None
+PORT = 8086
+IPADDRESS = "localhost"
+DATABASE_NAME = "attempt"
 
 def build_argparser():
     parser = ArgumentParser(add_help=False)
@@ -186,6 +192,13 @@ def draw_detections(frame, detections, palette, labels, output_transform):
                     landmark = output_transform.scale(landmark)
                     cv2.circle(frame, (int(landmark[0]), int(landmark[1])), 2, (0, 255, 255), 2)
     cv2.putText(frame,f'Number of people: {count}',(frame.shape[1]//2,30),cv2.FONT_HERSHEY_DUPLEX,1.3,(255,255,0),1)
+    json_body = [{
+                "measurement": "people_count",
+                "fields": {
+                    "count":count
+                }
+            }]
+    # db_client.write_points(json_body)
     return frame
 
 
@@ -374,9 +387,23 @@ def video_feed():
     return Response(main(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+def create_database():
+    """
+    Connect to InfluxDB and create the database
+
+    :return: None
+    """
+    global db_client
+
+    proxy = {"http": "http://{}:{}".format(IPADDRESS, PORT)}
+    db_client = InfluxDBClient(host=IPADDRESS, port=PORT, proxies=proxy, database=DATABASE_NAME)
+    db_client.create_database(DATABASE_NAME)
+
 if __name__ == '__main__':
+    create_database()
     app.run(host='0.0.0.0')
 
 
 if __name__ == '__main__':
     sys.exit(main() or 0)
+
